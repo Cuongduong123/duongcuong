@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>AES Encryption Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 40px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #aaa;
+    }
+    textarea, input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      font-family: monospace;
+    }
+    button {
+      padding: 10px 20px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #004c99;
+    }
+    .output {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #eee;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Mã hóa & Giải mã AES (AES-GCM)</h1>
+    <label for="key">Mật khẩu (dài bao nhiêu tùy ý):</label>
+    <input type="text" id="key" placeholder="Nhập khóa bí mật">
+
+    <label for="plaintext">Dữ liệu đầu vào:</label>
+    <textarea id="plaintext" rows="5" placeholder="Nhập văn bản cần mã hóa hoặc giải mã..."></textarea>
+
+    <button onclick="encrypt()">🔐 Mã hóa</button>
+    <button onclick="decrypt()">🔓 Giải mã</button>
+
+    <div class="output" id="result"></div>
+  </div>
+
+  <script>
+    // Mã hóa AES sử dụng Web Crypto API
+    async function encrypt() {
+      const keyText = document.getElementById('key').value;
+      const plainText = document.getElementById('plaintext').value;
+      const enc = new TextEncoder();
+
+      const keyMaterial = await getKeyMaterial(keyText);
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: enc.encode("salt123"), iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt"]
+      );
+
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        enc.encode(plainText)
+      );
+
+      const result = btoa(String.fromCharCode(...iv) + String.fromCharCode(...new Uint8Array(encrypted)));
+      document.getElementById('result').textContent = "🔐 Dữ liệu mã hóa:\n" + result;
+    }
+
+    async function decrypt() {
+      const keyText = document.getElementById('key').value;
+      const encodedData = document.getElementById('plaintext').value;
+      const enc = new TextEncoder();
+      const dec = new TextDecoder();
+
+      const data = atob(encodedData);
+      const iv = Uint8Array.from(data.slice(0, 12), c => c.charCodeAt(0));
+      const ciphertext = Uint8Array.from(data.slice(12), c => c.charCodeAt(0));
+      const keyMaterial = await getKeyMaterial(keyText);
+      const key = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: enc.encode("salt123"), iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+
+      try {
+        const decrypted = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          ciphertext
+        );
+        document.getElementById('result').textContent = "🔓 Dữ liệu gốc:\n" + dec.decode(decrypted);
+      } catch (e) {
+        document.getElementById('result').textContent = "❌ Không thể giải mã! Khóa hoặc dữ liệu sai.";
+      }
+    }
+
+    function getKeyMaterial(password) {
+      return crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(password),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+      );
+    }
+  </script>
+</body>
+</html>
